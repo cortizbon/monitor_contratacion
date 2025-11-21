@@ -2,9 +2,8 @@ name: SECOP ETL Daily
 
 on:
   schedule:
-    # Todos los días a las 23:00 UTC (6:00 PM hora Colombia)
+    # Todos los días a las 23:00 UTC (6:00 PM Colombia)
     - cron: "0 23 * * *"
-  # Permite ejecutarlo manualmente
   workflow_dispatch:
 
 jobs:
@@ -24,9 +23,9 @@ jobs:
         run: |
           pip install --upgrade pip
           if [ -f etl/requirements-etl.txt ]; then
-            pip install -r etl/requirements-etl.txt
+              pip install -r etl/requirements-etl.txt
           else
-            pip install pandas pyarrow
+              pip install pandas pyarrow
           fi
 
       - name: Run ETL script
@@ -38,5 +37,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Verificar cambios en data/
+          # Verificar si hay cambios en data/
           if [ -n "$(git status --porcelain data)" ]; then
+              echo "Hay cambios en data/, se realizará commit."
+              git add data
+              git commit -m "Update SECOP parquet data [skip ci]" || true
+              git push
+          else
+              echo "No hay cambios en data/, no se hace commit."
+          fi
