@@ -1,5 +1,3 @@
-# src/secop_api.py
-
 import datetime
 import pandas as pd
 
@@ -30,7 +28,7 @@ def fetch_secop1(last_n_days: int = 180) -> pd.DataFrame:
     if df.shape[0] == 0:
         return df  # vacío
 
-    # Nos quedamos con campos clave
+
     cols = [
         "nombre_entidad",
         "detalle_del_objeto_a_contratar",
@@ -60,7 +58,7 @@ def fetch_secop1(last_n_days: int = 180) -> pd.DataFrame:
 
         df["ruta_proceso_en_secop_i"] = df["ruta_proceso_en_secop_i"].map(extract_url_secop1)
 
-    # Eliminamos filas sin fecha o sin valor de contrato
+
     df = df.dropna(subset=["fecha_de_cargue_en_el_secop", "cuantia_contrato"])
 
     return df
@@ -111,7 +109,6 @@ def fetch_secop2(last_n_days: int = 180) -> pd.DataFrame:
 
         df["urlproceso"] = df["urlproceso"].map(extract_url_secop2)
 
-    # Eliminamos filas sin fecha o sin valor de contrato
     df = df.dropna(subset=["fecha_de_firma", "valor_del_contrato"])
 
     return df

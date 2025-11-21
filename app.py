@@ -1,5 +1,3 @@
-# app.py
-
 import datetime
 from io import BytesIO
 from pathlib import Path

@@ -1,5 +1,3 @@
-# src/metrics.py
-
 import pandas as pd
 
 
@@ -40,7 +38,6 @@ def build_daily_metrics(
     group = group.rename(columns={fecha_col: "fecha"})
     group["fuente"] = fuente
 
-    # Ordenamos por fecha
     group = group.sort_values("fecha")
 
     return group
