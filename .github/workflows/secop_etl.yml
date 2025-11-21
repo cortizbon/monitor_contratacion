@@ -1,12 +1,10 @@
-# .github/workflows/secop_etl.yml
-
 name: SECOP ETL Daily
 
 on:
   schedule:
-    # Todos los días a las 4:00 UTC
-    - cron: "0 4 * * *"
-  # Permite lanzarlo manualmente desde la pestaña "Actions"
+    # Todos los días a las 23:00 UTC (6:00 PM hora Colombia)
+    - cron: "0 23 * * *"
+  # Permite ejecutarlo manualmente
   workflow_dispatch:
 
 jobs:
@@ -40,12 +38,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Ver si hay cambios en la carpeta data
+          # Verificar cambios en data/
           if [ -n "$(git status --porcelain data)" ]; then
-            echo "Hay cambios en data/, se va a hacer commit."
-            git add data
-            git commit -m "Update SECOP parquet data [skip ci]" || echo "Nada que commitear."
-            git push
-          else
-            echo "No hay cambios en data/, no se hace commit."
-          fi
