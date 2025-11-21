@@ -3,7 +3,7 @@ name: SECOP ETL Daily
 on:
   schedule:
     # Todos los días a las 23:00 UTC (6:00 PM Colombia)
-    - cron: "*/2 * * * *""
+    - cron: "*/2 * * * *"
   workflow_dispatch:
 
 jobs:
