@@ -37,8 +37,6 @@ def fetch_secop1_since(start_date: datetime.date) -> pd.DataFrame:
         "rango_de_ejec_del_contrato",
         "fecha_de_cargue_en_el_secop",
         "ruta_proceso_en_secop_i",
-        # idealmente aquí deberías incluir un ID único de proceso si existe
-        # "codigo_proceso", etc.
     ]
     df = df[[c for c in cols if c in df.columns]].copy()
 
@@ -86,7 +84,6 @@ def fetch_secop2_since(start_date: datetime.date) -> pd.DataFrame:
         "duraci_n_del_contrato",
         "fecha_de_firma",
         "urlproceso",
-        # idem, aquí idealmente un ID único
     ]
     df = df[[c for c in cols if c in df.columns]].copy()
 

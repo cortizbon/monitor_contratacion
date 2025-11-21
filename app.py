@@ -52,7 +52,7 @@ st.write(
     "a partir de los archivos Parquet generados diariamente."
 )
 
-# ----------------- CARGAR PARQUET -----------------
+# CARGAR PARQUET 
 secop1_path = DATA_DIR / "secop1.parquet"
 secop2_path = DATA_DIR / "secop2.parquet"
 
@@ -64,7 +64,7 @@ if not secop1_path.exists() and not secop2_path.exists():
 df_secop1 = pd.read_parquet(secop1_path) if secop1_path.exists() else pd.DataFrame()
 df_secop2 = pd.read_parquet(secop2_path) if secop2_path.exists() else pd.DataFrame()
 
-# Filtrar ventana de días hacia atrás
+# Filtrar ventana 
 start_date = today - datetime.timedelta(days=last_n_days)
 
 if not df_secop1.empty:
@@ -85,7 +85,7 @@ if df_secop1.empty and df_secop2.empty:
     st.warning("No hay datos en la ventana de días seleccionada.")
     st.stop()
 
-# ----------------- MÉTRICAS DIARIAS -----------------
+# MÉTRICAS DIARIAS
 df_daily_secop1 = build_daily_metrics(
     df=df_secop1,
     fecha_col="fecha_de_cargue_en_el_secop",
@@ -117,7 +117,7 @@ with col_kpi3:
 with col_kpi4:
     st.metric("Total (SECOP 2, millones)", f"{total_m2:,.2f}")
 
-# ----------------- TABS -----------------
+# TABS
 tab1, tab2 = st.tabs(["SECOP 1", "SECOP 2"])
 
 with tab1:
