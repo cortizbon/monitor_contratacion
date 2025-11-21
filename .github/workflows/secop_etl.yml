@@ -1,0 +1,51 @@
+# .github/workflows/secop_etl.yml
+
+name: SECOP ETL Daily
+
+on:
+  schedule:
+    # Todos los días a las 4:00 UTC
+    - cron: "0 4 * * *"
+  # Permite lanzarlo manualmente desde la pestaña "Actions"
+  workflow_dispatch:
+
+jobs:
+  run_etl:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install ETL dependencies
+        run: |
+          pip install --upgrade pip
+          if [ -f etl/requirements-etl.txt ]; then
+            pip install -r etl/requirements-etl.txt
+          else
+            pip install pandas pyarrow
+          fi
+
+      - name: Run ETL script
+        run: |
+          python etl/ingest_secop_daily.py
+
+      - name: Commit and push changes (if any)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Ver si hay cambios en la carpeta data
+          if [ -n "$(git status --porcelain data)" ]; then
+            echo "Hay cambios en data/, se va a hacer commit."
+            git add data
+            git commit -m "Update SECOP parquet data [skip ci]" || echo "Nada que commitear."
+            git push
+          else
+            echo "No hay cambios en data/, no se hace commit."
+          fi
