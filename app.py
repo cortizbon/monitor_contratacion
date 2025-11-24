@@ -48,9 +48,9 @@ st.write(
     "a partir de los archivos Parquet generados diariamente."
 )
 
-# -------------------------------------------------
+
 # CARGAR PARQUET
-# -------------------------------------------------
+
 secop1_path = DATA_DIR / "secop1.parquet"
 secop2_path = DATA_DIR / "secop2.parquet"
 
@@ -64,9 +64,9 @@ if not secop1_path.exists() and not secop2_path.exists():
 df_secop1_raw = pd.read_parquet(secop1_path) if secop1_path.exists() else pd.DataFrame()
 df_secop2_raw = pd.read_parquet(secop2_path) if secop2_path.exists() else pd.DataFrame()
 
-# -------------------------------------------------
+
 # FILTRAR VENTANA DE TIEMPO
-# -------------------------------------------------
+
 start_date = today - datetime.timedelta(days=last_n_days)
 
 if not df_secop1_raw.empty:
@@ -91,9 +91,9 @@ if df_secop1.empty and df_secop2.empty:
     st.warning("No hay datos en la ventana de días seleccionada.")
     st.stop()
 
-# -------------------------------------------------
-# MÉTRICAS DIARIAS GLOBALES (SIN FILTROS ADICIONALES)
-# -------------------------------------------------
+
+# MÉTRICAS DIARIAS GLOBALES
+
 df_daily_secop1_global = build_daily_metrics(
     df=df_secop1,
     fecha_col="fecha_de_cargue_en_el_secop",
@@ -132,7 +132,7 @@ with col_kpi4:
 # -------------------------------------------------
 tab1, tab2 = st.tabs(["SECOP 1", "SECOP 2"])
 
-# ---------------------- TAB SECOP 1 ----------------------
+# TAB SECOP 1 
 with tab1:
     st.subheader("SECOP 1 - Contratación diaria")
 
@@ -141,7 +141,7 @@ with tab1:
     else:
         df1 = df_secop1.copy()
 
-        # Filtros específicos SECOP 1 (AFECTAN SOLO LAS LÍNEAS)
+        # Filtros específicos SECOP 1
         st.markdown("### Filtros SECOP 1")
 
         fcol1, fcol2, fcol3 = st.columns(3)
@@ -176,7 +176,7 @@ with tab1:
                 index=0,
             )
 
-        # Aplicar filtros SOLO a df1 (líneas)
+        # Aplicar filtros SOLO a df1
         if estado_sel_1 != "Todos" and "estado_del_proceso" in df1.columns:
             df1 = df1[df1["estado_del_proceso"] == estado_sel_1]
 
@@ -191,7 +191,7 @@ with tab1:
         if df1.empty:
             st.warning("No hay contratos que cumplan los filtros seleccionados.")
         else:
-            # Métricas diarias con filtros (líneas)
+            # Métricas diarias con filtros
             df_daily_secop1 = build_daily_metrics(
                 df=df1,
                 fecha_col="fecha_de_cargue_en_el_secop",
@@ -200,7 +200,7 @@ with tab1:
                 col_id="uid",
             )
 
-            # Gráficas de serie de tiempo (afectadas por filtros)
+            # Gráficas de serie de tiempo
             fig1 = chart_n_contratos(df_daily_secop1, "Número de contratos diarios (SECOP 1)")
             fig2 = chart_suma_millones(df_daily_secop1, "Suma diaria de contratos (SECOP 1, millones)")
             fig3 = chart_promedio_millones(
@@ -210,7 +210,7 @@ with tab1:
             st.plotly_chart(fig2, use_container_width=True)
             st.plotly_chart(fig3, use_container_width=True)
 
-        # --------- ÁREAS APILADAS RELATIVAS (NO AFECTADAS POR FILTROS) ---------
+        # AREAS APILADAS
         st.markdown("### Distribución por estado y modalidad en el tiempo (SECOP 1, % de contratos únicos)")
 
         df_base1 = df_secop1.copy()  # solo filtrado por tiempo, sin filtros de selectbox
@@ -296,7 +296,7 @@ with tab1:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-# ---------------------- TAB SECOP 2 ----------------------
+# TAB SECOP 2 
 with tab2:
     st.subheader("SECOP 2 - Contratación diaria")
 
@@ -305,7 +305,7 @@ with tab2:
     else:
         df2 = df_secop2.copy()
 
-        # Filtros específicos SECOP 2 (AFECTAN SOLO LAS LÍNEAS)
+        # Filtros específicos SECOP 2
         st.markdown("### Filtros SECOP 2")
 
         fcol1, fcol2, fcol3, fcol4 = st.columns(4)
@@ -350,7 +350,7 @@ with tab2:
                 index=0,
             )
 
-        # Aplicar filtros SOLO a df2 (líneas)
+        # Aplicar filtros
         if estado_sel_2 != "Todos" and "estado_contrato" in df2.columns:
             df2 = df2[df2["estado_contrato"] == estado_sel_2]
 
@@ -368,7 +368,7 @@ with tab2:
         if df2.empty:
             st.warning("No hay contratos que cumplan los filtros seleccionados.")
         else:
-            # Métricas diarias con filtros (líneas)
+            # Métricas diarias con filtros
             df_daily_secop2 = build_daily_metrics(
                 df=df2,
                 fecha_col="fecha_de_firma",
