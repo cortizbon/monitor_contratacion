@@ -45,7 +45,6 @@ mostrar_tablas_detalle = st.sidebar.checkbox(
 st.write(
     f"Mostrando contratos de los últimos **{last_n_days}** días "
     f"(desde el { (today - datetime.timedelta(days=last_n_days)).strftime('%Y-%m-%d') } hasta hoy), "
-    "a partir de los archivos Parquet generados diariamente."
 )
 
 
