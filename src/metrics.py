@@ -6,6 +6,7 @@ def build_daily_metrics(
     fecha_col: str,
     valor_col: str,
     fuente: str,
+    col_id: str
 ) -> pd.DataFrame:
     """
     Construye métricas diarias:
@@ -24,6 +25,7 @@ def build_daily_metrics(
     # Por seguridad convertimos a tipo adecuado
     df_work[valor_col] = pd.to_numeric(df_work[valor_col], errors="coerce")
     df_work = df_work.dropna(subset=[fecha_col, valor_col])
+    df_work = df_work.drop_duplicates(subset=[col_id])
 
     group = (
         df_work

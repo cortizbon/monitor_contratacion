@@ -31,12 +31,13 @@ def fetch_secop1_since(start_date: datetime.date) -> pd.DataFrame:
     cols = [
         "nombre_entidad",
         "detalle_del_objeto_a_contratar",
-        "estado_del_proceso",
         "cuantia_contrato",
-        "plazo_de_ejec_del_contrato",
-        "rango_de_ejec_del_contrato",
         "fecha_de_cargue_en_el_secop",
         "ruta_proceso_en_secop_i",
+        "estado_del_proceso",
+        "tipo_de_contrato",
+        "modalidad_de_contratacion",
+        "uid"
     ]
     df = df[[c for c in cols if c in df.columns]].copy()
 
@@ -78,12 +79,15 @@ def fetch_secop2_since(start_date: datetime.date) -> pd.DataFrame:
 
     cols = [
         "nombre_entidad",
+        "departamento",
         "descripcion_del_proceso",
-        "tipo_de_contrato",
         "valor_del_contrato",
-        "duraci_n_del_contrato",
         "fecha_de_firma",
         "urlproceso",
+        "estado_contrato",
+        "modalidad_de_contratacion",
+        "sector",
+        "id_contrato"
     ]
     df = df[[c for c in cols if c in df.columns]].copy()
 
