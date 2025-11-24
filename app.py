@@ -185,7 +185,7 @@ with tab1:
         if modalidad_sel_1 != "Todos" and "modalidad_de_contratacion" in df1.columns:
             df1 = df1[df1["modalidad_de_contratacion"] == modalidad_sel_1]
 
-        st.write(f"Contratos SECOP 1 en la ventana y filtros (para líneas): **{df1.shape[0]:,}**")
+        st.write(f"Contratos SECOP 1 en la ventana y filtros: **{df1.shape[0]:,}**")
 
         if df1.empty:
             st.warning("No hay contratos que cumplan los filtros seleccionados.")
@@ -362,7 +362,7 @@ with tab2:
         if departamento_sel_2 != "Todos" and "departamento" in df2.columns:
             df2 = df2[df2["departamento"] == departamento_sel_2]
 
-        st.write(f"Contratos SECOP 2 en la ventana y filtros (para líneas): **{df2.shape[0]:,}**")
+        st.write(f"Contratos SECOP 2 en la ventana y filtros: **{df2.shape[0]:,}**")
 
         if df2.empty:
             st.warning("No hay contratos que cumplan los filtros seleccionados.")
