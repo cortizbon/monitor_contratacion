@@ -61,8 +61,9 @@ if not secop1_path.exists() and not secop2_path.exists():
     st.stop()
 
 df_secop1_raw = pd.read_parquet(secop1_path) if secop1_path.exists() else pd.DataFrame()
+df_secop1_raw = df_secop1_raw.drop_duplicates(subset=['uid']).reset_index(drop=True)
 df_secop2_raw = pd.read_parquet(secop2_path) if secop2_path.exists() else pd.DataFrame()
-
+df_secop2_raw = df_secop2_raw.drop_duplicates(subset=['id_contrato']).reset_index(drop=True)
 
 # FILTRAR VENTANA DE TIEMPO
 
