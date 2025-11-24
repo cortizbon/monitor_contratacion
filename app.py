@@ -99,7 +99,7 @@ df_daily_secop1_global = build_daily_metrics(
     fecha_col="fecha_de_cargue_en_el_secop",
     valor_col="cuantia_contrato",
     fuente="SECOP 1",
-    col_id="uid"
+    col_id="uid",
 )
 
 df_daily_secop2_global = build_daily_metrics(
@@ -107,7 +107,7 @@ df_daily_secop2_global = build_daily_metrics(
     fecha_col="fecha_de_firma",
     valor_col="valor_del_contrato",
     fuente="SECOP 2",
-    col_id='id_contrato'
+    col_id="id_contrato",
 )
 
 col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
@@ -141,7 +141,7 @@ with tab1:
     else:
         df1 = df_secop1.copy()
 
-        # Filtros específicos SECOP 1
+        # Filtros específicos SECOP 1 (AFECTAN SOLO LAS LÍNEAS)
         st.markdown("### Filtros SECOP 1")
 
         fcol1, fcol2, fcol3 = st.columns(3)
@@ -176,8 +176,7 @@ with tab1:
                 index=0,
             )
 
-
-        # Aplicar filtros
+        # Aplicar filtros SOLO a df1 (líneas)
         if estado_sel_1 != "Todos" and "estado_del_proceso" in df1.columns:
             df1 = df1[df1["estado_del_proceso"] == estado_sel_1]
 
@@ -187,22 +186,21 @@ with tab1:
         if modalidad_sel_1 != "Todos" and "modalidad_de_contratacion" in df1.columns:
             df1 = df1[df1["modalidad_de_contratacion"] == modalidad_sel_1]
 
-
-        st.write(f"Contratos SECOP 1 en la ventana y filtros: **{df1.shape[0]:,}**")
+        st.write(f"Contratos SECOP 1 en la ventana y filtros (para líneas): **{df1.shape[0]:,}**")
 
         if df1.empty:
             st.warning("No hay contratos que cumplan los filtros seleccionados.")
         else:
-            # Métricas diarias con filtros
+            # Métricas diarias con filtros (líneas)
             df_daily_secop1 = build_daily_metrics(
                 df=df1,
                 fecha_col="fecha_de_cargue_en_el_secop",
                 valor_col="cuantia_contrato",
                 fuente="SECOP 1",
-                col_id='uid'
+                col_id="uid",
             )
 
-            # Gráficas de serie de tiempo
+            # Gráficas de serie de tiempo (afectadas por filtros)
             fig1 = chart_n_contratos(df_daily_secop1, "Número de contratos diarios (SECOP 1)")
             fig2 = chart_suma_millones(df_daily_secop1, "Suma diaria de contratos (SECOP 1, millones)")
             fig3 = chart_promedio_millones(
@@ -212,76 +210,91 @@ with tab1:
             st.plotly_chart(fig2, use_container_width=True)
             st.plotly_chart(fig3, use_container_width=True)
 
-            # Distribuciones por estado y modalidad (SECOP 1) - Áreas apiladas en el tiempo (número de contratos únicos)
-            st.markdown("### Distribución por estado y modalidad en el tiempo (SECOP 1)")
+        # --------- ÁREAS APILADAS RELATIVAS (NO AFECTADAS POR FILTROS) ---------
+        st.markdown("### Distribución por estado y modalidad en el tiempo (SECOP 1, % de contratos únicos)")
 
-            # ================================
-            # Área apilada por estado_del_proceso (número de contratos únicos)
-            # ================================
-            if "estado_del_proceso" in df1.columns:
-                df_estado_1 = (
-                    df1
-                    .assign(fecha_dia=df1["fecha_de_cargue_en_el_secop"].dt.floor("D"))
-                    .groupby(["fecha_dia", "estado_del_proceso"], as_index=False)
-                    .agg(n_contratos=("uid", "nunique"))  # contratos únicos por día y estado
-                )
+        df_base1 = df_secop1.copy()  # solo filtrado por tiempo, sin filtros de selectbox
 
-                fig_estado_1 = px.area(
-                    df_estado_1,
-                    x="fecha_dia",
-                    y="n_contratos",
-                    color="estado_del_proceso",
-                    title="Número diario de contratos por estado del proceso",
-                )
-                fig_estado_1.update_layout(
-                    xaxis_title="Fecha",
-                    yaxis_title="Número de contratos únicos",
-                    height=350,
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    legend_title="Estado del proceso",
-                )
-                st.plotly_chart(fig_estado_1, use_container_width=True)
-
-            # ================================
-            # Área apilada por modalidad_de_contratacion (número de contratos únicos)
-            # ================================
-            if "modalidad_de_contratacion" in df1.columns:
-                df_mod_1 = (
-                    df1
-                    .assign(fecha_dia=df1["fecha_de_cargue_en_el_secop"].dt.floor("D"))
-                    .groupby(["fecha_dia", "modalidad_de_contratacion"], as_index=False)
-                    .agg(n_contratos=("uid", "nunique"))  # contratos únicos por día y modalidad
-                )
-
-                fig_mod_1 = px.area(
-                    df_mod_1,
-                    x="fecha_dia",
-                    y="n_contratos",
-                    color="modalidad_de_contratacion",
-                    title="Número diario de contratos por modalidad de contratación",
-                )
-                fig_mod_1.update_layout(
-                    xaxis_title="Fecha",
-                    yaxis_title="Número de contratos únicos",
-                    height=350,
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    legend_title="Modalidad",
-                )
-                st.plotly_chart(fig_mod_1, use_container_width=True)
-            if mostrar_tablas_detalle:
-                st.markdown("### Tabla diaria de métricas (SECOP 1)")
-                st.dataframe(df_daily_secop1)
-
-            # Descarga métricas SECOP 1
-            buffer1 = BytesIO()
-            with pd.ExcelWriter(buffer1, engine="openpyxl") as writer:
-                df_daily_secop1.to_excel(writer, index=False, sheet_name="SECOP1_diario")
-            st.download_button(
-                label="Descargar métricas SECOP 1 (Excel)",
-                data=buffer1.getvalue(),
-                file_name="secop1_metricas_diarias.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        # Área apilada por estado_del_proceso (%)
+        if "estado_del_proceso" in df_base1.columns:
+            df_estado_1 = (
+                df_base1
+                .assign(fecha_dia=df_base1["fecha_de_cargue_en_el_secop"].dt.floor("D"))
+                .groupby(["fecha_dia", "estado_del_proceso"], as_index=False)
+                .agg(n_contratos=("uid", "nunique"))
             )
+
+            df_estado_1["pct_contratos"] = (
+                df_estado_1["n_contratos"]
+                / df_estado_1.groupby("fecha_dia")["n_contratos"].transform("sum")
+                * 100
+            )
+
+            fig_estado_1 = px.area(
+                df_estado_1,
+                x="fecha_dia",
+                y="pct_contratos",
+                color="estado_del_proceso",
+                title="Porcentaje diario de contratos por estado del proceso",
+            )
+            fig_estado_1.update_layout(
+                xaxis_title="Fecha",
+                yaxis_title="% de contratos únicos",
+                yaxis=dict(range=[0, 100]),
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+                legend_title="Estado del proceso",
+            )
+            st.plotly_chart(fig_estado_1, use_container_width=True)
+
+        # Área apilada por modalidad_de_contratacion (%)
+        if "modalidad_de_contratacion" in df_base1.columns:
+            df_mod_1 = (
+                df_base1
+                .assign(fecha_dia=df_base1["fecha_de_cargue_en_el_secop"].dt.floor("D"))
+                .groupby(["fecha_dia", "modalidad_de_contratacion"], as_index=False)
+                .agg(n_contratos=("uid", "nunique"))
+            )
+
+            df_mod_1["pct_contratos"] = (
+                df_mod_1["n_contratos"]
+                / df_mod_1.groupby("fecha_dia")["n_contratos"].transform("sum")
+                * 100
+            )
+
+            fig_mod_1 = px.area(
+                df_mod_1,
+                x="fecha_dia",
+                y="pct_contratos",
+                color="modalidad_de_contratacion",
+                title="Porcentaje diario de contratos por modalidad de contratación",
+            )
+            fig_mod_1.update_layout(
+                xaxis_title="Fecha",
+                yaxis_title="% de contratos únicos",
+                yaxis=dict(range=[0, 100]),
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+                legend_title="Modalidad",
+            )
+            st.plotly_chart(fig_mod_1, use_container_width=True)
+
+        if mostrar_tablas_detalle and not df1.empty:
+            st.markdown("### Tabla diaria de métricas (SECOP 1)")
+            st.dataframe(df_daily_secop1)
+
+        # Descarga métricas SECOP 1
+        buffer1 = BytesIO()
+        with pd.ExcelWriter(buffer1, engine="openpyxl") as writer:
+            (df_daily_secop1 if not df1.empty else df_daily_secop1_global).to_excel(
+                writer, index=False, sheet_name="SECOP1_diario"
+            )
+        st.download_button(
+            label="Descargar métricas SECOP 1 (Excel)",
+            data=buffer1.getvalue(),
+            file_name="secop1_metricas_diarias.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
 # ---------------------- TAB SECOP 2 ----------------------
 with tab2:
@@ -291,7 +304,8 @@ with tab2:
         st.warning("No hay datos de SECOP 2 para esta ventana.")
     else:
         df2 = df_secop2.copy()
-        # Filtros específicos SECOP 2
+
+        # Filtros específicos SECOP 2 (AFECTAN SOLO LAS LÍNEAS)
         st.markdown("### Filtros SECOP 2")
 
         fcol1, fcol2, fcol3, fcol4 = st.columns(4)
@@ -336,8 +350,7 @@ with tab2:
                 index=0,
             )
 
-
-        # Aplicar filtros
+        # Aplicar filtros SOLO a df2 (líneas)
         if estado_sel_2 != "Todos" and "estado_contrato" in df2.columns:
             df2 = df2[df2["estado_contrato"] == estado_sel_2]
 
@@ -350,19 +363,18 @@ with tab2:
         if departamento_sel_2 != "Todos" and "departamento" in df2.columns:
             df2 = df2[df2["departamento"] == departamento_sel_2]
 
-
-        st.write(f"Contratos SECOP 2 en la ventana y filtros: **{df2.shape[0]:,}**")
+        st.write(f"Contratos SECOP 2 en la ventana y filtros (para líneas): **{df2.shape[0]:,}**")
 
         if df2.empty:
             st.warning("No hay contratos que cumplan los filtros seleccionados.")
         else:
-            # Métricas diarias con filtros
+            # Métricas diarias con filtros (líneas)
             df_daily_secop2 = build_daily_metrics(
                 df=df2,
                 fecha_col="fecha_de_firma",
                 valor_col="valor_del_contrato",
                 fuente="SECOP 2",
-                col_id='id_contrato'
+                col_id="id_contrato",
             )
 
             fig1 = chart_n_contratos(df_daily_secop2, "Número de contratos diarios (SECOP 2)")
@@ -375,132 +387,156 @@ with tab2:
             st.plotly_chart(fig2, use_container_width=True)
             st.plotly_chart(fig3, use_container_width=True)
 
-            # ==============================================================
-            # Distribuciones por estado, modalidad, sector y departamento
-            # Áreas apiladas — Número de contratos únicos (SECOP 2)
-            # ==============================================================
+        # ==============================================================
+        # Distribuciones por estado, modalidad, sector y departamento
+        # Áreas apiladas — % de contratos únicos (NO AFECTADAS POR FILTROS)
+        # ==============================================================
 
-            st.markdown("### Distribución en el tiempo por categorías (SECOP 2)")
+        st.markdown("### Distribución en el tiempo por categorías (SECOP 2, % de contratos únicos)")
 
-            # ================================
-            # 1. Área apilada por estado_contrato
-            # ================================
-            if "estado_contrato" in df2.columns:
-                df_estado_2 = (
-                    df2
-                    .assign(fecha_dia=df2["fecha_de_firma"].dt.floor("D"))
-                    .groupby(["fecha_dia", "estado_contrato"], as_index=False)
-                    .agg(n_contratos=("id_contrato", "nunique"))
-                )
+        df_base2 = df_secop2.copy()  # solo filtrado por tiempo
 
-                fig_estado_2 = px.area(
-                    df_estado_2,
-                    x="fecha_dia",
-                    y="n_contratos",
-                    color="estado_contrato",
-                    title="Número diario de contratos por estado",
-                )
-                fig_estado_2.update_layout(
-                    xaxis_title="Fecha",
-                    yaxis_title="Número de contratos únicos",
-                    height=350,
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    legend_title="Estado",
-                )
-                st.plotly_chart(fig_estado_2, use_container_width=True)
-
-            # ================================
-            # 2. Área apilada por modalidad_de_contratacion
-            # ================================
-            if "modalidad_de_contratacion" in df2.columns:
-                df_mod_2 = (
-                    df2
-                    .assign(fecha_dia=df2["fecha_de_firma"].dt.floor("D"))
-                    .groupby(["fecha_dia", "modalidad_de_contratacion"], as_index=False)
-                    .agg(n_contratos=("id_contrato", "nunique"))
-                )
-
-                fig_mod_2 = px.area(
-                    df_mod_2,
-                    x="fecha_dia",
-                    y="n_contratos",
-                    color="modalidad_de_contratacion",
-                    title="Número diario de contratos por modalidad",
-                )
-                fig_mod_2.update_layout(
-                    xaxis_title="Fecha",
-                    yaxis_title="Número de contratos únicos",
-                    height=350,
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    legend_title="Modalidad",
-                )
-                st.plotly_chart(fig_mod_2, use_container_width=True)
-
-            # ================================
-            # 3. Área apilada por sector
-            # ================================
-            if "sector" in df2.columns:
-                df_sector_2 = (
-                    df2
-                    .assign(fecha_dia=df2["fecha_de_firma"].dt.floor("D"))
-                    .groupby(["fecha_dia", "sector"], as_index=False)
-                    .agg(n_contratos=("id_contrato", "nunique"))
-                )
-
-                fig_sector_2 = px.area(
-                    df_sector_2,
-                    x="fecha_dia",
-                    y="n_contratos",
-                    color="sector",
-                    title="Número diario de contratos por sector",
-                )
-                fig_sector_2.update_layout(
-                    xaxis_title="Fecha",
-                    yaxis_title="Número de contratos únicos",
-                    height=350,
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    legend_title="Sector",
-                )
-                st.plotly_chart(fig_sector_2, use_container_width=True)
-
-            # ================================
-            # 4. Área apilada por departamento
-            # ================================
-            if "departamento" in df2.columns:
-                df_dep_2 = (
-                    df2
-                    .assign(fecha_dia=df2["fecha_de_firma"].dt.floor("D"))
-                    .groupby(["fecha_dia", "departamento"], as_index=False)
-                    .agg(n_contratos=("id_contrato", "nunique"))
-                )
-
-                fig_dep_2 = px.area(
-                    df_dep_2,
-                    x="fecha_dia",
-                    y="n_contratos",
-                    color="departamento",
-                    title="Número diario de contratos por departamento",
-                )
-                fig_dep_2.update_layout(
-                    xaxis_title="Fecha",
-                    yaxis_title="Número de contratos únicos",
-                    height=350,
-                    margin=dict(l=0, r=0, t=40, b=0),
-                    legend_title="Departamento",
-                )
-                st.plotly_chart(fig_dep_2, use_container_width=True)
-
-            if mostrar_tablas_detalle:
-                st.markdown("### Tabla diaria de métricas (SECOP 2)")
-                st.dataframe(df_daily_secop2)
-
-            # Descarga métricas SECOP 2
-            buffer2 = BytesIO()
-            with pd.ExcelWriter(buffer2, engine="openpyxl") as writer:
-                df_daily_secop2.to_excel(writer, index=False, sheet_name="SECOP2_diario")
-            st.download_button(
-                label="Descargar métricas SECOP 2 (Excel)",
-                data=buffer2.getvalue(),
-                file_name="secop2_metricas_diarias.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        # 1. Área apilada por estado_contrato (%)
+        if "estado_contrato" in df_base2.columns:
+            df_estado_2 = (
+                df_base2
+                .assign(fecha_dia=df_base2["fecha_de_firma"].dt.floor("D"))
+                .groupby(["fecha_dia", "estado_contrato"], as_index=False)
+                .agg(n_contratos=("id_contrato", "nunique"))
             )
+
+            df_estado_2["pct_contratos"] = (
+                df_estado_2["n_contratos"]
+                / df_estado_2.groupby("fecha_dia")["n_contratos"].transform("sum")
+                * 100
+            )
+
+            fig_estado_2 = px.area(
+                df_estado_2,
+                x="fecha_dia",
+                y="pct_contratos",
+                color="estado_contrato",
+                title="Porcentaje diario de contratos por estado",
+            )
+            fig_estado_2.update_layout(
+                xaxis_title="Fecha",
+                yaxis_title="% de contratos únicos",
+                yaxis=dict(range=[0, 100]),
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+                legend_title="Estado",
+            )
+            st.plotly_chart(fig_estado_2, use_container_width=True)
+
+        # 2. Área apilada por modalidad_de_contratacion (%)
+        if "modalidad_de_contratacion" in df_base2.columns:
+            df_mod_2 = (
+                df_base2
+                .assign(fecha_dia=df_base2["fecha_de_firma"].dt.floor("D"))
+                .groupby(["fecha_dia", "modalidad_de_contratacion"], as_index=False)
+                .agg(n_contratos=("id_contrato", "nunique"))
+            )
+
+            df_mod_2["pct_contratos"] = (
+                df_mod_2["n_contratos"]
+                / df_mod_2.groupby("fecha_dia")["n_contratos"].transform("sum")
+                * 100
+            )
+
+            fig_mod_2 = px.area(
+                df_mod_2,
+                x="fecha_dia",
+                y="pct_contratos",
+                color="modalidad_de_contratacion",
+                title="Porcentaje diario de contratos por modalidad",
+            )
+            fig_mod_2.update_layout(
+                xaxis_title="Fecha",
+                yaxis_title="% de contratos únicos",
+                yaxis=dict(range=[0, 100]),
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+                legend_title="Modalidad",
+            )
+            st.plotly_chart(fig_mod_2, use_container_width=True)
+
+        # 3. Área apilada por sector (%)
+        if "sector" in df_base2.columns:
+            df_sector_2 = (
+                df_base2
+                .assign(fecha_dia=df_base2["fecha_de_firma"].dt.floor("D"))
+                .groupby(["fecha_dia", "sector"], as_index=False)
+                .agg(n_contratos=("id_contrato", "nunique"))
+            )
+
+            df_sector_2["pct_contratos"] = (
+                df_sector_2["n_contratos"]
+                / df_sector_2.groupby("fecha_dia")["n_contratos"].transform("sum")
+                * 100
+            )
+
+            fig_sector_2 = px.area(
+                df_sector_2,
+                x="fecha_dia",
+                y="pct_contratos",
+                color="sector",
+                title="Porcentaje diario de contratos por sector",
+            )
+            fig_sector_2.update_layout(
+                xaxis_title="Fecha",
+                yaxis_title="% de contratos únicos",
+                yaxis=dict(range=[0, 100]),
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+                legend_title="Sector",
+            )
+            st.plotly_chart(fig_sector_2, use_container_width=True)
+
+        # 4. Área apilada por departamento (%)
+        if "departamento" in df_base2.columns:
+            df_dep_2 = (
+                df_base2
+                .assign(fecha_dia=df_base2["fecha_de_firma"].dt.floor("D"))
+                .groupby(["fecha_dia", "departamento"], as_index=False)
+                .agg(n_contratos=("id_contrato", "nunique"))
+            )
+
+            df_dep_2["pct_contratos"] = (
+                df_dep_2["n_contratos"]
+                / df_dep_2.groupby("fecha_dia")["n_contratos"].transform("sum")
+                * 100
+            )
+
+            fig_dep_2 = px.area(
+                df_dep_2,
+                x="fecha_dia",
+                y="pct_contratos",
+                color="departamento",
+                title="Porcentaje diario de contratos por departamento",
+            )
+            fig_dep_2.update_layout(
+                xaxis_title="Fecha",
+                yaxis_title="% de contratos únicos",
+                yaxis=dict(range=[0, 100]),
+                height=350,
+                margin=dict(l=0, r=0, t=40, b=0),
+                legend_title="Departamento",
+            )
+            st.plotly_chart(fig_dep_2, use_container_width=True)
+
+        if mostrar_tablas_detalle and not df2.empty:
+            st.markdown("### Tabla diaria de métricas (SECOP 2)")
+            st.dataframe(df_daily_secop2)
+
+        # Descarga métricas SECOP 2
+        buffer2 = BytesIO()
+        with pd.ExcelWriter(buffer2, engine="openpyxl") as writer:
+            (df_daily_secop2 if not df2.empty else df_daily_secop2_global).to_excel(
+                writer, index=False, sheet_name="SECOP2_diario"
+            )
+        st.download_button(
+            label="Descargar métricas SECOP 2 (Excel)",
+            data=buffer2.getvalue(),
+            file_name="secop2_metricas_diarias.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
