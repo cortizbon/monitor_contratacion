@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-
+import requests
 import pandas as pd
 
 
@@ -18,28 +18,31 @@ def fetch_secop1_since(start_date: datetime.date) -> pd.DataFrame:
     Endpoint: f789-7hwg
     """
     start_str = start_date.strftime("%Y-%m-%d")
-    url = (
-        "https://www.datos.gov.co/resource/f789-7hwg.json"
-        f"?$limit=300000&$where=fecha_de_cargue_en_el_secop>='{start_str}'"
-    )
-
-    df = pd.read_json(url)
+    url = f"https://www.datos.gov.co/resource/f789-7hwg.json"
+    params = {
+    "$where": f"fecha_de_firma_del_contrato >= '{start_str}'",
+    "$limit": 1000000
+    }
+    response = requests.get(url, params=params)
+    response.raise_for_status() # Verificar errores de conexión
+    data = response.json()
+    df = pd.DataFrame(data)
 
     if df.shape[0] == 0:
         return df
 
     cols = [
-        "nombre_entidad",
-        "detalle_del_objeto_a_contratar",
-        "cuantia_contrato",
-        "fecha_de_cargue_en_el_secop",
-        "ruta_proceso_en_secop_i",
-        "estado_del_proceso",
-        "tipo_de_contrato",
-        "modalidad_de_contratacion",
-        "uid",
-        "orden_entidad"
-    ]
+            "nombre_entidad",
+            "detalle_del_objeto_a_contratar",
+            "cuantia_contrato",
+            "fecha_de_cargue_en_el_secop",
+            "ruta_proceso_en_secop_i",
+            "estado_del_proceso",
+            "tipo_de_contrato",
+            "modalidad_de_contratacion",
+            "uid",
+            "orden_entidad"
+        ]
     df = df[[c for c in cols if c in df.columns]].copy()
 
     # Valor en millones
@@ -68,29 +71,34 @@ def fetch_secop2_since(start_date: datetime.date) -> pd.DataFrame:
     Endpoint: jbjy-vk9h
     """
     start_str = start_date.strftime("%Y-%m-%d")
-    url = (
-        "https://www.datos.gov.co/resource/jbjy-vk9h.json"
-        f"?$limit=300000&$where=fecha_de_firma>='{start_str}'"
-    )
-
-    df = pd.read_json(url)
+    url = f"https://www.datos.gov.co/resource/jbjy-vk9h.json"
+    params = {
+    "$where": f"fecha_de_firma_del_contrato >= '{start_str}'",
+    "$limit": 1000000
+    }
+    response = requests.get(url, params=params)
+    response.raise_for_status() # Verificar errores de conexión
+    data = response.json()
+    df = pd.DataFrame(data)
 
     if df.shape[0] == 0:
         return df
 
     cols = [
-        "nombre_entidad",
-        "departamento",
-        "descripcion_del_proceso",
-        "valor_del_contrato",
-        "fecha_de_firma",
-        "urlproceso",
-        "estado_contrato",
-        "modalidad_de_contratacion",
-        "sector",
-        "id_contrato",
-        "orden"
-    ]
+            "nombre_entidad",
+            "departamento",
+            "descripcion_del_proceso",
+            "valor_del_contrato",
+            "fecha_de_firma",
+            "urlproceso",
+            "estado_contrato",
+            "modalidad_de_contratacion",
+            "sector",
+            "id_contrato",
+            "orden",
+            "tipo_de_contrato",
+            "duraci_n_del_contrato"
+        ]
     df = df[[c for c in cols if c in df.columns]].copy()
 
     df["valor_del_contrato"] = pd.to_numeric(df["valor_del_contrato"], errors="coerce") / 1e6
