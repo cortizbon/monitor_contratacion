@@ -73,7 +73,7 @@ def fetch_secop2_since(start_date: datetime.date) -> pd.DataFrame:
     start_str = start_date.strftime("%Y-%m-%d")
     url = f"https://www.datos.gov.co/resource/jbjy-vk9h.json"
     params = {
-    "$where": f"fecha_de_firma_del_contrato >= '{start_str}'",
+    "$where": f"fecha_de_firma >= '{start_str}'",
     "$limit": 1000000
     }
     response = requests.get(url, params=params)
