@@ -163,7 +163,7 @@ def main():
         secop1_path = DATA_DIR / "secop1.parquet"
         last_date_1 = get_last_date_from_parquet(secop1_path, "fecha_de_cargue_en_el_secop")
 
-        start_1 = last_date_1 + datetime.timedelta(days=1)
+        start_1 = last_date_1
         if start_1 <= today:
             print(f"[SECOP 1] Descargando desde {start_1} hasta hoy...")
             df1_new = fetch_secop1_since(start_1)
@@ -179,7 +179,7 @@ def main():
         secop2_path = DATA_DIR / "secop2.parquet"
         last_date_2 = get_last_date_from_parquet(secop2_path, "fecha_de_firma")
 
-        start_2 = last_date_2 + datetime.timedelta(days=1)
+        start_2 = last_date_2
         if start_2 <= today:
             print(f"[SECOP 2] Descargando desde {start_2} hasta hoy...")
             df2_new = fetch_secop2_since(start_2)
