@@ -157,31 +157,38 @@ def append_to_parquet(df_new: pd.DataFrame, path: Path, subset_cols: list | None
 def main():
     today = datetime.date.today()
 
-    # ---------- SECOP 1 ----------
-    secop1_path = DATA_DIR / "secop1.parquet"
-    last_date_1 = get_last_date_from_parquet(secop1_path, "fecha_de_cargue_en_el_secop")
+    try:
 
-    start_1 = last_date_1 + datetime.timedelta(days=1)
-    if start_1 <= today:
-        print(f"[SECOP 1] Descargando desde {start_1} hasta hoy...")
-        df1_new = fetch_secop1_since(start_1)
-        print(f"[SECOP 1] Nuevos registros: {df1_new.shape[0]}")
-        append_to_parquet(df1_new, secop1_path)
-    else:
-        print("[SECOP 1] No hay días nuevos que consultar.")
+        # ---------- SECOP 1 ----------
+        secop1_path = DATA_DIR / "secop1.parquet"
+        last_date_1 = get_last_date_from_parquet(secop1_path, "fecha_de_cargue_en_el_secop")
 
-    # ---------- SECOP 2 ----------
-    secop2_path = DATA_DIR / "secop2.parquet"
-    last_date_2 = get_last_date_from_parquet(secop2_path, "fecha_de_firma")
+        start_1 = last_date_1 + datetime.timedelta(days=1)
+        if start_1 <= today:
+            print(f"[SECOP 1] Descargando desde {start_1} hasta hoy...")
+            df1_new = fetch_secop1_since(start_1)
+            print(f"[SECOP 1] Nuevos registros: {df1_new.shape[0]}")
+            append_to_parquet(df1_new, secop1_path)
+        else:
+            print("[SECOP 1] No hay días nuevos que consultar.")
+    except Exception as e:
+        print(f"[SECOP 1] Error durante la descarga o guardado: {e}")
 
-    start_2 = last_date_2 + datetime.timedelta(days=1)
-    if start_2 <= today:
-        print(f"[SECOP 2] Descargando desde {start_2} hasta hoy...")
-        df2_new = fetch_secop2_since(start_2)
-        print(f"[SECOP 2] Nuevos registros: {df2_new.shape[0]}")
-        append_to_parquet(df2_new, secop2_path)
-    else:
-        print("[SECOP 2] No hay días nuevos que consultar.")
+    try:
+        # ---------- SECOP 2 ----------
+        secop2_path = DATA_DIR / "secop2.parquet"
+        last_date_2 = get_last_date_from_parquet(secop2_path, "fecha_de_firma")
+
+        start_2 = last_date_2 + datetime.timedelta(days=1)
+        if start_2 <= today:
+            print(f"[SECOP 2] Descargando desde {start_2} hasta hoy...")
+            df2_new = fetch_secop2_since(start_2)
+            print(f"[SECOP 2] Nuevos registros: {df2_new.shape[0]}")
+            append_to_parquet(df2_new, secop2_path)
+        else:
+            print("[SECOP 2] No hay días nuevos que consultar.")
+    except Exception as e:
+        print(f"[SECOP 2] Error durante la descarga o guardado: {e}")
 
 
 if __name__ == "__main__":
