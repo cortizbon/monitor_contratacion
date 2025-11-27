@@ -45,7 +45,7 @@ mostrar_tablas_detalle = st.sidebar.checkbox(
 st.write(
     f"Mostrando contratos de los últimos **{last_n_days}** días "
     f"(desde el { (today - datetime.timedelta(days=last_n_days)).strftime('%Y-%m-%d') } hasta hoy), "
-    "a partir de los archivos Parquet generados diariamente."
+    "a partir de datos diarios."
 )
 
 # -------------------------------------------------
@@ -140,8 +140,9 @@ with tab1:
         st.warning("No hay datos de SECOP 1 para esta ventana.")
     else:
         df1 = df_secop1.copy()
+        df1 = df1.drop_duplicates(subset=['uid'])
 
-        # Filtros específicos SECOP 1 (AFECTAN TODO: LÍNEAS Y ÁREAS)
+        # Filtros específicos SECOP 1 
         st.markdown("### Filtros SECOP 1")
 
         fcol1, fcol2, fcol3 = st.columns(3)
@@ -176,7 +177,7 @@ with tab1:
                 index=0,
             )
 
-        # Aplicar filtros a df1 (afectan líneas y áreas)
+        # Aplicar filtros
         if estado_sel_1 != "Todos" and "estado_del_proceso" in df1.columns:
             df1 = df1[df1["estado_del_proceso"] == estado_sel_1]
 
@@ -191,7 +192,7 @@ with tab1:
         if df1.empty:
             st.warning("No hay contratos que cumplan los filtros seleccionados.")
         else:
-            # Métricas diarias con filtros (para líneas y descarga)
+            # Métricas diarias con filtros 
             df_daily_secop1 = build_daily_metrics(
                 df=df1,
                 fecha_col="fecha_de_cargue_en_el_secop",
@@ -200,7 +201,7 @@ with tab1:
                 col_id="uid",
             )
 
-            # Gráficas de serie de tiempo (afectadas por filtros)
+            # Gráficas de serie de tiempo 
             fig1 = chart_n_contratos(df_daily_secop1, "Número de contratos diarios (SECOP 1)")
             fig2 = chart_suma_millones(df_daily_secop1, "Suma diaria de contratos (SECOP 1, millones)")
             fig3 = chart_promedio_millones(
@@ -210,10 +211,10 @@ with tab1:
             st.plotly_chart(fig2, use_container_width=True)
             st.plotly_chart(fig3, use_container_width=True)
 
-            # --------- ÁREAS APILADAS RELATIVAS (AFECTADAS POR LOS MISMOS FILTROS) ---------
+            # --------- ÁREAS APILADAS RELATIVAS  ---------
             st.markdown("### Distribución por estado y modalidad en el tiempo (SECOP 1, % de contratos únicos)")
 
-            df_base1 = df1.copy()  # ya viene filtrado por tiempo + filtros de usuario
+            df_base1 = df1.copy()  
 
             # Área apilada por estado_del_proceso (%)
             if "estado_del_proceso" in df_base1.columns:
@@ -302,8 +303,8 @@ with tab2:
         st.warning("No hay datos de SECOP 2 para esta ventana.")
     else:
         df2 = df_secop2.copy()
-
-        # Filtros específicos SECOP 2 (AFECTAN TODO: LÍNEAS Y ÁREAS)
+        df2 = df2.drop_duplicates(subset=['id_contrato'])
+        # Filtros específicos SECOP 2
         st.markdown("### Filtros SECOP 2")
 
         fcol1, fcol2, fcol3, fcol4 = st.columns(4)
@@ -348,7 +349,7 @@ with tab2:
                 index=0,
             )
 
-        # Aplicar filtros a df2 (afectan líneas y áreas)
+        # Aplicar filtros 
         if estado_sel_2 != "Todos" and "estado_contrato" in df2.columns:
             df2 = df2[df2["estado_contrato"] == estado_sel_2]
 
@@ -366,7 +367,7 @@ with tab2:
         if df2.empty:
             st.warning("No hay contratos que cumplan los filtros seleccionados.")
         else:
-            # Métricas diarias con filtros (para líneas y descarga)
+            # Métricas diarias con filtros
             df_daily_secop2 = build_daily_metrics(
                 df=df2,
                 fecha_col="fecha_de_firma",
