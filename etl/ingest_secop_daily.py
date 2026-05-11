@@ -2,12 +2,13 @@
 
 import calendar
 import datetime
+import time
 from pathlib import Path
 
 import pandas as pd
 import requests
-import time
-from requests.exceptions import ConnectionError, HTTPError, Timeout
+from requests.exceptions import RequestException
+
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data"
@@ -18,10 +19,15 @@ BASE_URL = "https://www.datos.gov.co/resource/{dataset_id}.json"
 SECOP1_DATASET = "f789-7hwg"
 SECOP2_DATASET = "jbjy-vk9h"
 
-PAGE_SIZE = 10_000
+# Lower batch size to reduce probability of timeout / broken chunked responses.
+PAGE_SIZE = 5_000
+
+# Rolling six-month window.
 MONTHS_BACK = 6
-MAX_RETRIES = 5
-REQUEST_TIMEOUT = (20, 180)  # 20 segundos conexión, 180 lectura
+
+# Robust retry settings.
+MAX_RETRIES = 8
+REQUEST_TIMEOUT = (20, 240)  # connect timeout, read timeout
 
 
 SECOP1_COLUMNS = [
@@ -51,7 +57,7 @@ SECOP2_COLUMNS = [
     "orden",
     "tipo_de_contrato",
     "duraci_n_del_contrato",
-    "proveedor_adjudicado"
+    "proveedor_adjudicado",
 ]
 
 
@@ -80,12 +86,12 @@ def fetch_socrata_snapshot(
 ) -> pd.DataFrame:
     """
     Descarga una ventana completa desde datos.gov.co usando paginación.
-    No transforma valores monetarios.
 
-    Versión robusta:
-    - lotes más pequeños,
-    - reintentos ante timeouts,
-    - espera progresiva entre intentos.
+    Importante:
+    - No transforma valores monetarios.
+    - No divide valores por 1e6.
+    - No elimina registros por valores nulos.
+    - Reintenta ante errores de red, timeouts y respuestas incompletas.
     """
     url = BASE_URL.format(dataset_id=dataset_id)
 
@@ -94,7 +100,7 @@ def fetch_socrata_snapshot(
         f"AND {date_column} < '{end_exclusive.isoformat()}'"
     )
 
-    all_rows = []
+    all_rows: list[dict] = []
     offset = 0
 
     session = requests.Session()
@@ -121,8 +127,8 @@ def fetch_socrata_snapshot(
                 batch = response.json()
                 break
 
-            except (Timeout, ConnectionError, HTTPError) as exc:
-                wait_seconds = min(60, 2 ** attempt)
+            except RequestException as exc:
+                wait_seconds = min(90, 2**attempt)
 
                 print(
                     f"[{dataset_id}] Error en offset {offset:,}. "
@@ -162,14 +168,20 @@ def normalize_url_column(df: pd.DataFrame, column: str) -> pd.DataFrame:
         df[column] = df[column].map(
             lambda x: x.get("url") if isinstance(x, dict) and "url" in x else x
         )
+
     return df
 
 
 def write_snapshot_temp(df: pd.DataFrame, path: Path) -> Path:
     """
-    Escribe un archivo temporal. No toca todavía el parquet definitivo.
+    Escribe un archivo temporal.
+    No toca todavía el parquet definitivo.
     """
     temp_path = path.with_suffix(".tmp.parquet")
+
+    if temp_path.exists():
+        temp_path.unlink()
+
     df.to_parquet(temp_path, index=False)
 
     print(
@@ -191,7 +203,22 @@ def replace_snapshot(temp_path: Path, final_path: Path) -> None:
 
     print(f"[OK] Reemplazado {final_path}")
 
+
+def cleanup_temp_files() -> None:
+    """
+    Limpia temporales de ejecuciones fallidas anteriores.
+    """
+    for temp_file in DATA_DIR.glob("*.tmp.parquet"):
+        try:
+            temp_file.unlink()
+            print(f"[OK] Temporal eliminado: {temp_file}")
+        except OSError as exc:
+            print(f"[WARN] No se pudo eliminar temporal {temp_file}: {exc}")
+
+
 def main() -> None:
+    cleanup_temp_files()
+
     today = datetime.date.today()
 
     # Ventana móvil de seis meses hasta hoy.
@@ -201,21 +228,14 @@ def main() -> None:
 
     print(f"Ventana de descarga: {start_date} <= fecha < {end_exclusive}")
 
-    # SECOP I
-    print("[SECOP I] Descargando snapshot...")
-    df_secop1 = fetch_socrata_snapshot(
-        dataset_id=SECOP1_DATASET,
-        columns=SECOP1_COLUMNS,
-        date_column="fecha_de_cargue_en_el_secop",
-        id_column="uid",
-        start_date=start_date,
-        end_exclusive=end_exclusive,
-    )
     secop1_path = DATA_DIR / "secop1.parquet"
     secop2_path = DATA_DIR / "secop2.parquet"
 
+    # ------------------------------------------------------------
     # SECOP I
+    # ------------------------------------------------------------
     print("[SECOP I] Descargando snapshot...")
+
     df_secop1 = fetch_socrata_snapshot(
         dataset_id=SECOP1_DATASET,
         columns=SECOP1_COLUMNS,
@@ -224,11 +244,15 @@ def main() -> None:
         start_date=start_date,
         end_exclusive=end_exclusive,
     )
+
     df_secop1 = normalize_url_column(df_secop1, "ruta_proceso_en_secop_i")
     temp_secop1 = write_snapshot_temp(df_secop1, secop1_path)
 
+    # ------------------------------------------------------------
     # SECOP II
+    # ------------------------------------------------------------
     print("[SECOP II] Descargando snapshot...")
+
     df_secop2 = fetch_socrata_snapshot(
         dataset_id=SECOP2_DATASET,
         columns=SECOP2_COLUMNS,
@@ -237,12 +261,19 @@ def main() -> None:
         start_date=start_date,
         end_exclusive=end_exclusive,
     )
+
     df_secop2 = normalize_url_column(df_secop2, "urlproceso")
     temp_secop2 = write_snapshot_temp(df_secop2, secop2_path)
 
-    # Solo si ambas descargas terminaron bien, reemplazamos los archivos definitivos.
+    # ------------------------------------------------------------
+    # Reemplazo final
+    # ------------------------------------------------------------
+    # Solo si ambas descargas terminaron bien, se reemplazan los
+    # archivos definitivos.
     replace_snapshot(temp_secop1, secop1_path)
     replace_snapshot(temp_secop2, secop2_path)
+
+    print("[OK] ETL semanal completado correctamente.")
 
 
 if __name__ == "__main__":
