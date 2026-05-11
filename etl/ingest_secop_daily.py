@@ -211,8 +211,21 @@ def main() -> None:
         start_date=start_date,
         end_exclusive=end_exclusive,
     )
+    secop1_path = DATA_DIR / "secop1.parquet"
+    secop2_path = DATA_DIR / "secop2.parquet"
+
+    # SECOP I
+    print("[SECOP I] Descargando snapshot...")
+    df_secop1 = fetch_socrata_snapshot(
+        dataset_id=SECOP1_DATASET,
+        columns=SECOP1_COLUMNS,
+        date_column="fecha_de_cargue_en_el_secop",
+        id_column="uid",
+        start_date=start_date,
+        end_exclusive=end_exclusive,
+    )
     df_secop1 = normalize_url_column(df_secop1, "ruta_proceso_en_secop_i")
-    write_snapshot(df_secop1, DATA_DIR / "secop1.parquet")
+    temp_secop1 = write_snapshot_temp(df_secop1, secop1_path)
 
     # SECOP II
     print("[SECOP II] Descargando snapshot...")
@@ -225,7 +238,11 @@ def main() -> None:
         end_exclusive=end_exclusive,
     )
     df_secop2 = normalize_url_column(df_secop2, "urlproceso")
-    write_snapshot(df_secop2, DATA_DIR / "secop2.parquet")
+    temp_secop2 = write_snapshot_temp(df_secop2, secop2_path)
+
+    # Solo si ambas descargas terminaron bien, reemplazamos los archivos definitivos.
+    replace_snapshot(temp_secop1, secop1_path)
+    replace_snapshot(temp_secop2, secop2_path)
 
 
 if __name__ == "__main__":
