@@ -35,6 +35,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          rm -f data/*.tmp.parquet
+
           git add data/secop1.parquet data/secop2.parquet
 
           if git diff --cached --quiet; then

@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 import requests
-
+import time
+from requests.exceptions import ConnectionError, HTTPError, Timeout
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data"
@@ -17,8 +18,10 @@ BASE_URL = "https://www.datos.gov.co/resource/{dataset_id}.json"
 SECOP1_DATASET = "f789-7hwg"
 SECOP2_DATASET = "jbjy-vk9h"
 
-PAGE_SIZE = 50_000
+PAGE_SIZE = 10_000
 MONTHS_BACK = 6
+MAX_RETRIES = 5
+REQUEST_TIMEOUT = (20, 180)  # 20 segundos conexión, 180 lectura
 
 
 SECOP1_COLUMNS = [
@@ -48,6 +51,7 @@ SECOP2_COLUMNS = [
     "orden",
     "tipo_de_contrato",
     "duraci_n_del_contrato",
+    "proveedor_adjudicado"
 ]
 
 
@@ -77,6 +81,11 @@ def fetch_socrata_snapshot(
     """
     Descarga una ventana completa desde datos.gov.co usando paginación.
     No transforma valores monetarios.
+
+    Versión robusta:
+    - lotes más pequeños,
+    - reintentos ante timeouts,
+    - espera progresiva entre intentos.
     """
     url = BASE_URL.format(dataset_id=dataset_id)
 
@@ -88,6 +97,8 @@ def fetch_socrata_snapshot(
     all_rows = []
     offset = 0
 
+    session = requests.Session()
+
     while True:
         params = {
             "$select": ",".join(columns),
@@ -97,18 +108,41 @@ def fetch_socrata_snapshot(
             "$offset": offset,
         }
 
-        response = requests.get(url, params=params, timeout=90)
-        response.raise_for_status()
+        batch = None
 
-        batch = response.json()
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                response = session.get(
+                    url,
+                    params=params,
+                    timeout=REQUEST_TIMEOUT,
+                )
+                response.raise_for_status()
+                batch = response.json()
+                break
+
+            except (Timeout, ConnectionError, HTTPError) as exc:
+                wait_seconds = min(60, 2 ** attempt)
+
+                print(
+                    f"[{dataset_id}] Error en offset {offset:,}. "
+                    f"Intento {attempt}/{MAX_RETRIES}. "
+                    f"Esperando {wait_seconds}s. Error: {exc}"
+                )
+
+                if attempt == MAX_RETRIES:
+                    raise
+
+                time.sleep(wait_seconds)
 
         if not batch:
             break
 
         all_rows.extend(batch)
+
         print(
             f"[{dataset_id}] Descargados {len(all_rows):,} registros "
-            f"(último lote: {len(batch):,})"
+            f"(último lote: {len(batch):,}, offset: {offset:,})"
         )
 
         if len(batch) < PAGE_SIZE:
@@ -131,16 +165,31 @@ def normalize_url_column(df: pd.DataFrame, column: str) -> pd.DataFrame:
     return df
 
 
-def write_snapshot(df: pd.DataFrame, path: Path) -> None:
+def write_snapshot_temp(df: pd.DataFrame, path: Path) -> Path:
     """
-    Elimina el dataset anterior y escribe el nuevo snapshot.
+    Escribe un archivo temporal. No toca todavía el parquet definitivo.
     """
-    if path.exists():
-        path.unlink()
+    temp_path = path.with_suffix(".tmp.parquet")
+    df.to_parquet(temp_path, index=False)
 
-    df.to_parquet(path, index=False)
-    print(f"[OK] Escrito {path} con {df.shape[0]:,} filas y {df.shape[1]:,} columnas.")
+    print(
+        f"[OK] Temporal escrito {temp_path} "
+        f"con {df.shape[0]:,} filas y {df.shape[1]:,} columnas."
+    )
 
+    return temp_path
+
+
+def replace_snapshot(temp_path: Path, final_path: Path) -> None:
+    """
+    Reemplaza el parquet definitivo solo cuando la descarga completa fue exitosa.
+    """
+    if final_path.exists():
+        final_path.unlink()
+
+    temp_path.rename(final_path)
+
+    print(f"[OK] Reemplazado {final_path}")
 
 def main() -> None:
     today = datetime.date.today()
