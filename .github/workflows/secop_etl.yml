@@ -1,12 +1,12 @@
-name: SECOP ETL Daily
+name: SECOP ETL Weekly
 
 on:
   schedule:
-    - cron: "0 23 * * *"
+    - cron: "0 23 * * 0"
   workflow_dispatch:
 
 permissions:
-  contents: write 
+  contents: write
 
 jobs:
   run_etl:
@@ -24,27 +24,22 @@ jobs:
       - name: Install ETL dependencies
         run: |
           pip install --upgrade pip
-          if [ -f etl/requirements-etl.txt ]; then
-              pip install -r etl/requirements-etl.txt
-          else
-              pip install pandas pyarrow
-          fi
+          pip install -r etl/requirements-etl.txt
 
-      - name: Run ETL script
+      - name: Run weekly SECOP snapshot ETL
         run: |
           python etl/ingest_secop_daily.py
 
-      - name: Commit and push changes (if any)
+      - name: Commit updated parquet snapshots
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Verificar si hay cambios en data/
-          if [ -n "$(git status --porcelain data)" ]; then
-              echo "Hay cambios en data/, se realizará commit."
-              git add data
-              git commit -m "Update SECOP parquet data [skip ci]" || true
-              git push
+          git add data/secop1.parquet data/secop2.parquet
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios en los datasets."
           else
-              echo "No hay cambios en data/, no se hace commit."
+            git commit -m "Update weekly SECOP snapshots"
+            git push
           fi

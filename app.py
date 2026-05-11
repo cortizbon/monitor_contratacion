@@ -64,6 +64,17 @@ if not secop1_path.exists() and not secop2_path.exists():
 df_secop1_raw = pd.read_parquet(secop1_path) if secop1_path.exists() else pd.DataFrame()
 df_secop2_raw = pd.read_parquet(secop2_path) if secop2_path.exists() else pd.DataFrame()
 
+# Columnas derivadas SOLO para visualización.
+# No modifican los parquet guardados por el ETL.
+if not df_secop1_raw.empty and "cuantia_contrato" in df_secop1_raw.columns:
+    df_secop1_raw["cuantia_contrato_millones"] = (
+        pd.to_numeric(df_secop1_raw["cuantia_contrato"], errors="coerce") / 1e6
+    )
+
+if not df_secop2_raw.empty and "valor_del_contrato" in df_secop2_raw.columns:
+    df_secop2_raw["valor_del_contrato_millones"] = (
+        pd.to_numeric(df_secop2_raw["valor_del_contrato"], errors="coerce") / 1e6
+    )
 # -------------------------------------------------
 # FILTRAR VENTANA DE TIEMPO
 # -------------------------------------------------
@@ -97,7 +108,7 @@ if df_secop1.empty and df_secop2.empty:
 df_daily_secop1_global = build_daily_metrics(
     df=df_secop1,
     fecha_col="fecha_de_cargue_en_el_secop",
-    valor_col="cuantia_contrato",
+    valor_col="cuantia_contrato_millones",
     fuente="SECOP 1",
     col_id="uid",
 )
@@ -105,7 +116,7 @@ df_daily_secop1_global = build_daily_metrics(
 df_daily_secop2_global = build_daily_metrics(
     df=df_secop2,
     fecha_col="fecha_de_firma",
-    valor_col="valor_del_contrato",
+    valor_col="valor_del_contrato_millones",
     fuente="SECOP 2",
     col_id="id_contrato",
 )
@@ -196,7 +207,7 @@ with tab1:
             df_daily_secop1 = build_daily_metrics(
                 df=df1,
                 fecha_col="fecha_de_cargue_en_el_secop",
-                valor_col="cuantia_contrato",
+                valor_col="cuantia_contrato_millones",
                 fuente="SECOP 1",
                 col_id="uid",
             )
@@ -307,61 +318,75 @@ with tab2:
         # Filtros específicos SECOP 2
         st.markdown("### Filtros SECOP 2")
 
-        fcol1, fcol2, fcol3, fcol4 = st.columns(4)
+        def opciones_filtro(df: pd.DataFrame, col: str) -> list[str]:
+            if col not in df.columns:
+                return ["Todos"]
+
+            valores = (
+                df[col]
+                .dropna()
+                .astype(str)
+                .sort_values()
+                .unique()
+                .tolist()
+            )
+
+            return ["Todos"] + valores if valores else ["Todos"]
+
+
+        fcol1, fcol2, fcol3, fcol4, fcol5 = st.columns(5)
 
         with fcol1:
-            estados_2 = sorted(df2["estado_contrato"].dropna().unique()) \
-                if "estado_contrato" in df2.columns else []
-            opciones_estados_2 = ["Todos"] + estados_2 if estados_2 else ["Todos"]
             estado_sel_2 = st.selectbox(
                 "Estado del contrato",
-                opciones_estados_2,
+                opciones_filtro(df2, "estado_contrato"),
                 index=0,
             )
 
         with fcol2:
-            modalidades_2 = sorted(df2["modalidad_de_contratacion"].dropna().unique()) \
-                if "modalidad_de_contratacion" in df2.columns else []
-            opciones_modalidades_2 = ["Todos"] + modalidades_2 if modalidades_2 else ["Todos"]
             modalidad_sel_2 = st.selectbox(
                 "Modalidad de contratación",
-                opciones_modalidades_2,
+                opciones_filtro(df2, "modalidad_de_contratacion"),
                 index=0,
             )
 
         with fcol3:
-            sectores_2 = sorted(df2["sector"].dropna().unique()) \
-                if "sector" in df2.columns else []
-            opciones_sectores_2 = ["Todos"] + sectores_2 if sectores_2 else ["Todos"]
             sector_sel_2 = st.selectbox(
                 "Sector",
-                opciones_sectores_2,
+                opciones_filtro(df2, "sector"),
                 index=0,
             )
 
         with fcol4:
-            departamentos_2 = sorted(df2["departamento"].dropna().unique()) \
-                if "departamento" in df2.columns else []
-            opciones_departamentos_2 = ["Todos"] + departamentos_2 if departamentos_2 else ["Todos"]
-            departamento_sel_2 = st.selectbox(
-                "Departamento",
-                opciones_departamentos_2,
+            orden_sel_2 = st.selectbox(
+                "Orden",
+                opciones_filtro(df2, "orden"),
                 index=0,
             )
 
-        # Aplicar filtros 
+        with fcol5:
+            tipo_sel_2 = st.selectbox(
+                "Tipo de contrato",
+                opciones_filtro(df2, "tipo_de_contrato"),
+                index=0,
+            )
+
+
+        # Aplicar filtros
         if estado_sel_2 != "Todos" and "estado_contrato" in df2.columns:
-            df2 = df2[df2["estado_contrato"] == estado_sel_2]
+            df2 = df2[df2["estado_contrato"].astype(str) == estado_sel_2]
 
         if modalidad_sel_2 != "Todos" and "modalidad_de_contratacion" in df2.columns:
-            df2 = df2[df2["modalidad_de_contratacion"] == modalidad_sel_2]
+            df2 = df2[df2["modalidad_de_contratacion"].astype(str) == modalidad_sel_2]
 
         if sector_sel_2 != "Todos" and "sector" in df2.columns:
-            df2 = df2[df2["sector"] == sector_sel_2]
+            df2 = df2[df2["sector"].astype(str) == sector_sel_2]
 
-        if departamento_sel_2 != "Todos" and "departamento" in df2.columns:
-            df2 = df2[df2["departamento"] == departamento_sel_2]
+        if orden_sel_2 != "Todos" and "orden" in df2.columns:
+            df2 = df2[df2["orden"].astype(str) == orden_sel_2]
 
+        if tipo_sel_2 != "Todos" and "tipo_de_contrato" in df2.columns:
+            df2 = df2[df2["tipo_de_contrato"].astype(str) == tipo_sel_2]
         st.write(f"Contratos SECOP 2 en la ventana y filtros: **{df2.shape[0]:,}**")
 
         if df2.empty:
@@ -371,7 +396,7 @@ with tab2:
             df_daily_secop2 = build_daily_metrics(
                 df=df2,
                 fecha_col="fecha_de_firma",
-                valor_col="valor_del_contrato",
+                valor_col="valor_del_contrato_millones",
                 fuente="SECOP 2",
                 col_id="id_contrato",
             )

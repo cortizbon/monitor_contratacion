@@ -1,194 +1,182 @@
 # etl/ingest_secop_daily.py
 
+import calendar
 import datetime
 from pathlib import Path
-import requests
+
 import pandas as pd
+import requests
 
 
-# Carpeta de datos (relativa a la raíz del repo)
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
+BASE_URL = "https://www.datos.gov.co/resource/{dataset_id}.json"
 
-def fetch_secop1_since(start_date: datetime.date) -> pd.DataFrame:
+SECOP1_DATASET = "f789-7hwg"
+SECOP2_DATASET = "jbjy-vk9h"
+
+PAGE_SIZE = 50_000
+MONTHS_BACK = 6
+
+
+SECOP1_COLUMNS = [
+    "nombre_entidad",
+    "detalle_del_objeto_a_contratar",
+    "cuantia_contrato",
+    "fecha_de_cargue_en_el_secop",
+    "ruta_proceso_en_secop_i",
+    "estado_del_proceso",
+    "tipo_de_contrato",
+    "modalidad_de_contratacion",
+    "uid",
+    "orden_entidad",
+]
+
+SECOP2_COLUMNS = [
+    "nombre_entidad",
+    "departamento",
+    "descripcion_del_proceso",
+    "valor_del_contrato",
+    "fecha_de_firma",
+    "urlproceso",
+    "estado_contrato",
+    "modalidad_de_contratacion",
+    "sector",
+    "id_contrato",
+    "orden",
+    "tipo_de_contrato",
+    "duraci_n_del_contrato",
+]
+
+
+def subtract_months(date_value: datetime.date, months: int) -> datetime.date:
     """
-    Descarga contratos de SECOP 1 desde start_date hasta hoy.
-    Endpoint: f789-7hwg
+    Resta meses calendario conservando el día cuando sea posible.
+    Ejemplo: 2026-05-31 menos 6 meses -> 2025-11-30.
     """
-    start_str = start_date.strftime("%Y-%m-%d")
-    url = f"https://www.datos.gov.co/resource/f789-7hwg.json"
-    params = {
-    "$where": f"fecha_de_firma_del_contrato >= '{start_str}'",
-    "$limit": 1000000
-    }
-    response = requests.get(url, params=params)
-    response.raise_for_status() # Verificar errores de conexión
-    data = response.json()
-    df = pd.DataFrame(data)
+    month = date_value.month - months
+    year = date_value.year + (month - 1) // 12
+    month = (month - 1) % 12 + 1
 
-    if df.shape[0] == 0:
-        return df
+    last_day = calendar.monthrange(year, month)[1]
+    day = min(date_value.day, last_day)
 
-    cols = [
-            "nombre_entidad",
-            "detalle_del_objeto_a_contratar",
-            "cuantia_contrato",
-            "fecha_de_cargue_en_el_secop",
-            "ruta_proceso_en_secop_i",
-            "estado_del_proceso",
-            "tipo_de_contrato",
-            "modalidad_de_contratacion",
-            "uid",
-            "orden_entidad"
-        ]
-    df = df[[c for c in cols if c in df.columns]].copy()
+    return datetime.date(year, month, day)
 
-    # Valor en millones
-    df["cuantia_contrato"] = pd.to_numeric(df["cuantia_contrato"], errors="coerce") / 1e6
-    df["fecha_de_cargue_en_el_secop"] = pd.to_datetime(
-        df["fecha_de_cargue_en_el_secop"], errors="coerce"
+
+def fetch_socrata_snapshot(
+    dataset_id: str,
+    columns: list[str],
+    date_column: str,
+    id_column: str,
+    start_date: datetime.date,
+    end_exclusive: datetime.date,
+) -> pd.DataFrame:
+    """
+    Descarga una ventana completa desde datos.gov.co usando paginación.
+    No transforma valores monetarios.
+    """
+    url = BASE_URL.format(dataset_id=dataset_id)
+
+    where_clause = (
+        f"{date_column} >= '{start_date.isoformat()}' "
+        f"AND {date_column} < '{end_exclusive.isoformat()}'"
     )
 
-    # Limpiar URL si viene como dict
-    if "ruta_proceso_en_secop_i" in df.columns:
-        def extract_url_secop1(x):
-            if isinstance(x, dict) and "url" in x:
-                return x["url"]
-            return x
+    all_rows = []
+    offset = 0
 
-        df["ruta_proceso_en_secop_i"] = df["ruta_proceso_en_secop_i"].map(extract_url_secop1)
+    while True:
+        params = {
+            "$select": ",".join(columns),
+            "$where": where_clause,
+            "$order": f"{date_column} ASC, {id_column} ASC",
+            "$limit": PAGE_SIZE,
+            "$offset": offset,
+        }
 
-    df = df.dropna(subset=["fecha_de_cargue_en_el_secop", "cuantia_contrato"])
+        response = requests.get(url, params=params, timeout=90)
+        response.raise_for_status()
 
+        batch = response.json()
+
+        if not batch:
+            break
+
+        all_rows.extend(batch)
+        print(
+            f"[{dataset_id}] Descargados {len(all_rows):,} registros "
+            f"(último lote: {len(batch):,})"
+        )
+
+        if len(batch) < PAGE_SIZE:
+            break
+
+        offset += PAGE_SIZE
+
+    return pd.DataFrame(all_rows, columns=columns)
+
+
+def normalize_url_column(df: pd.DataFrame, column: str) -> pd.DataFrame:
+    """
+    Algunos campos URL pueden venir como diccionario {'url': ...}.
+    Esto no modifica valores contractuales; solo evita problemas al guardar parquet.
+    """
+    if column in df.columns:
+        df[column] = df[column].map(
+            lambda x: x.get("url") if isinstance(x, dict) and "url" in x else x
+        )
     return df
 
 
-def fetch_secop2_since(start_date: datetime.date) -> pd.DataFrame:
+def write_snapshot(df: pd.DataFrame, path: Path) -> None:
     """
-    Descarga contratos de SECOP 2 desde start_date hasta hoy.
-    Endpoint: jbjy-vk9h
+    Elimina el dataset anterior y escribe el nuevo snapshot.
     """
-    start_str = start_date.strftime("%Y-%m-%d")
-    url = f"https://www.datos.gov.co/resource/jbjy-vk9h.json"
-    params = {
-    "$where": f"fecha_de_firma >= '{start_str}'",
-    "$limit": 1000000
-    }
-    response = requests.get(url, params=params)
-    response.raise_for_status() # Verificar errores de conexión
-    data = response.json()
-    df = pd.DataFrame(data)
-
-    if df.shape[0] == 0:
-        return df
-
-    cols = [
-            "nombre_entidad",
-            "departamento",
-            "descripcion_del_proceso",
-            "valor_del_contrato",
-            "fecha_de_firma",
-            "urlproceso",
-            "estado_contrato",
-            "modalidad_de_contratacion",
-            "sector",
-            "id_contrato",
-            "orden",
-            "tipo_de_contrato",
-            "duraci_n_del_contrato"
-        ]
-    df = df[[c for c in cols if c in df.columns]].copy()
-
-    df["valor_del_contrato"] = pd.to_numeric(df["valor_del_contrato"], errors="coerce") / 1e6
-    df["fecha_de_firma"] = pd.to_datetime(df["fecha_de_firma"], errors="coerce")
-
-    if "urlproceso" in df.columns:
-        def extract_url_secop2(x):
-            if isinstance(x, dict) and "url" in x:
-                return x["url"]
-            return x
-
-        df["urlproceso"] = df["urlproceso"].map(extract_url_secop2)
-
-    df = df.dropna(subset=["fecha_de_firma", "valor_del_contrato"])
-
-    return df
-
-
-def get_last_date_from_parquet(path: Path, fecha_col: str, default_days_back: int = 365):
-    """
-    Si el parquet existe, devuelve la última fecha registrada.
-    Si no existe, devuelve hoy - default_days_back (para inicializar histórico).
-    """
-    if not path.exists():
-        return datetime.date.today() - datetime.timedelta(days=default_days_back)
-
-    df = pd.read_parquet(path, columns=[fecha_col])
-    if df.empty:
-        return datetime.date.today() - datetime.timedelta(days=default_days_back)
-
-    max_date = df[fecha_col].max()
-    return max_date.date() if hasattr(max_date, "date") else max_date
-
-
-def append_to_parquet(df_new: pd.DataFrame, path: Path, subset_cols: list | None = None):
-    """
-    Añade df_new al parquet, evitando duplicados.
-    subset_cols: columnas que definen un registro único (si las tienes).
-    """
-    if df_new.empty:
-        return
-
     if path.exists():
-        df_old = pd.read_parquet(path)
-        df_all = pd.concat([df_old, df_new], ignore_index=True)
-        if subset_cols is not None:
-            df_all = df_all.drop_duplicates(subset=subset_cols)
-        else:
-            df_all = df_all.drop_duplicates()
-    else:
-        df_all = df_new.copy()
+        path.unlink()
 
-    df_all.to_parquet(path, index=False)
+    df.to_parquet(path, index=False)
+    print(f"[OK] Escrito {path} con {df.shape[0]:,} filas y {df.shape[1]:,} columnas.")
 
 
-def main():
+def main() -> None:
     today = datetime.date.today()
 
-    try:
+    # Ventana móvil de seis meses hasta hoy.
+    # end_exclusive incluye todo el día de hoy.
+    start_date = subtract_months(today, MONTHS_BACK)
+    end_exclusive = today + datetime.timedelta(days=1)
 
-        # ---------- SECOP 1 ----------
-        secop1_path = DATA_DIR / "secop1.parquet"
-        last_date_1 = get_last_date_from_parquet(secop1_path, "fecha_de_cargue_en_el_secop")
+    print(f"Ventana de descarga: {start_date} <= fecha < {end_exclusive}")
 
-        start_1 = last_date_1
-        if start_1 <= today:
-            print(f"[SECOP 1] Descargando desde {start_1} hasta hoy...")
-            df1_new = fetch_secop1_since(start_1)
-            print(f"[SECOP 1] Nuevos registros: {df1_new.shape[0]}")
-            append_to_parquet(df1_new, secop1_path)
-        else:
-            print("[SECOP 1] No hay días nuevos que consultar.")
-    except Exception as e:
-        print(f"[SECOP 1] Error durante la descarga o guardado: {e}")
+    # SECOP I
+    print("[SECOP I] Descargando snapshot...")
+    df_secop1 = fetch_socrata_snapshot(
+        dataset_id=SECOP1_DATASET,
+        columns=SECOP1_COLUMNS,
+        date_column="fecha_de_cargue_en_el_secop",
+        id_column="uid",
+        start_date=start_date,
+        end_exclusive=end_exclusive,
+    )
+    df_secop1 = normalize_url_column(df_secop1, "ruta_proceso_en_secop_i")
+    write_snapshot(df_secop1, DATA_DIR / "secop1.parquet")
 
-    try:
-        # ---------- SECOP 2 ----------
-        secop2_path = DATA_DIR / "secop2.parquet"
-        last_date_2 = get_last_date_from_parquet(secop2_path, "fecha_de_firma")
-
-        start_2 = last_date_2
-        if start_2 <= today:
-            print(f"[SECOP 2] Descargando desde {start_2} hasta hoy...")
-            df2_new = fetch_secop2_since(start_2)
-            print(f"[SECOP 2] Nuevos registros: {df2_new.shape[0]}")
-            append_to_parquet(df2_new, secop2_path)
-        else:
-            print("[SECOP 2] No hay días nuevos que consultar.")
-    except Exception as e:
-        print(f"[SECOP 2] Error durante la descarga o guardado: {e}")
+    # SECOP II
+    print("[SECOP II] Descargando snapshot...")
+    df_secop2 = fetch_socrata_snapshot(
+        dataset_id=SECOP2_DATASET,
+        columns=SECOP2_COLUMNS,
+        date_column="fecha_de_firma",
+        id_column="id_contrato",
+        start_date=start_date,
+        end_exclusive=end_exclusive,
+    )
+    df_secop2 = normalize_url_column(df_secop2, "urlproceso")
+    write_snapshot(df_secop2, DATA_DIR / "secop2.parquet")
 
 
 if __name__ == "__main__":
