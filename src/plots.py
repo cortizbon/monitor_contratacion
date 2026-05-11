@@ -2,7 +2,10 @@ import pandas as pd
 import plotly.express as px
 
 
-def chart_n_contratos(df_daily: pd.DataFrame, title: str = "Número de contratos diarios"):
+def chart_n_contratos(
+        df_daily: pd.DataFrame, 
+        title: str = "Número de contratos diarios"
+        ):
     fig = px.line(
         df_daily,
         x="fecha",
